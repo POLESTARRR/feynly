@@ -5,7 +5,8 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    LLM_PROVIDER=gemini
+    LLM_PROVIDER=gemini \
+    FEYNLY_SQLITE_PATH=/tmp/feynly.db
 
 WORKDIR /app
 

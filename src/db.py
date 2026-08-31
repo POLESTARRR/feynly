@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import re
+import sqlite3
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -61,24 +62,104 @@ class DatabaseError(RuntimeError):
     pass
 
 
-def is_configured() -> bool:
+# A local SQLite file is the fallback when Turso is not set up. It gives the
+# deployed app the one thing the JSON stores cannot: a separate history per
+# visitor. What it does not give is persistence, because free hosts wipe the
+# filesystem when the container sleeps. That is the honest trade. Turso remains
+# the upgrade, and setting its two variables takes precedence automatically.
+SQLITE_PATH_VAR = "FEYNLY_SQLITE_PATH"
+
+
+def turso_configured() -> bool:
     return bool(os.environ.get("TURSO_DATABASE_URL") and os.environ.get("TURSO_AUTH_TOKEN"))
 
 
+def sqlite_path() -> str:
+    return os.environ.get(SQLITE_PATH_VAR, "").strip()
+
+
+def is_configured() -> bool:
+    """True when a real database backs the app, so stores scope per visitor.
+
+    Deliberately false for plain local use, which keeps the terminal app and the
+    browser app sharing one JSON history on disk exactly as before.
+    """
+    return turso_configured() or bool(sqlite_path())
+
+
+class _SqliteResult:
+    """Mirrors the shape libsql_client returns, which is only ever `.rows`."""
+
+    __slots__ = ("rows",)
+
+    def __init__(self, rows):
+        self.rows = rows
+
+
+class _SqliteClient:
+    """The slice of the libsql client this module actually uses.
+
+    db.py touches a client three ways: as a context manager, `.execute(sql, args)`
+    returning something with `.rows`, and positional access into those rows.
+    stdlib sqlite3 satisfies all three, so every store class above works
+    unchanged against a file.
+    """
+
+    def __init__(self, path: str):
+        # One short-lived connection per operation, matching how `_Backed` uses
+        # it, so threaded request handling never shares a connection.
+        self._conn = sqlite3.connect(path, timeout=30, check_same_thread=False)
+        # WAL lets a reader and a writer overlap instead of one blocking on the
+        # other, which a threaded web server does constantly.
+        self._conn.execute("PRAGMA journal_mode=WAL")
+
+    def execute(self, sql: str, args=None) -> _SqliteResult:
+        cursor = self._conn.execute(sql, tuple(args or []))
+        rows = cursor.fetchall()
+        self._conn.commit()
+        return _SqliteResult(rows)
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        self.close()
+        return False
+
+
 def connect():
-    """Open a Turso client. Callers are responsible for closing it."""
+    """Open a database client. Callers are responsible for closing it."""
     url = os.environ.get("TURSO_DATABASE_URL", "")
     token = os.environ.get("TURSO_AUTH_TOKEN", "")
-    if not url or not token:
-        raise DatabaseError("TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must both be set.")
-    try:
-        import libsql_client
-    except ImportError as exc:
-        raise DatabaseError("libsql-client is not installed. Run: pip install libsql-client") from exc
 
-    # The libsql:// scheme is spoken as https:// by the HTTP client.
-    return libsql_client.create_client_sync(
-        url=url.replace("libsql://", "https://"), auth_token=token
+    if url and token:
+        try:
+            import libsql_client
+        except ImportError as exc:
+            raise DatabaseError(
+                "libsql-client is not installed. Run: pip install libsql-client"
+            ) from exc
+        # The libsql:// scheme is spoken as https:// by the HTTP client.
+        return libsql_client.create_client_sync(
+            url=url.replace("libsql://", "https://"), auth_token=token
+        )
+
+    path = sqlite_path()
+    if path:
+        try:
+            parent = Path(path).parent
+            if str(parent) not in ("", "."):
+                parent.mkdir(parents=True, exist_ok=True)
+            return _SqliteClient(path)
+        except OSError as exc:
+            raise DatabaseError(f"Could not open the SQLite file at {path}: {exc}") from exc
+
+    raise DatabaseError(
+        f"No database configured. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN, "
+        f"or {SQLITE_PATH_VAR} for a local file."
     )
 
 
