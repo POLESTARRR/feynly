@@ -12,12 +12,24 @@ from src.tutor import TutorHistory
 def no_database(monkeypatch):
     monkeypatch.delenv("TURSO_DATABASE_URL", raising=False)
     monkeypatch.delenv("TURSO_AUTH_TOKEN", raising=False)
+    # Cleared too, or a developer with this set in their shell silently tests
+    # the database path while reading a test that says local.
+    monkeypatch.delenv(db.SQLITE_PATH_VAR, raising=False)
 
 
 @pytest.fixture
 def with_database(monkeypatch):
     monkeypatch.setenv("TURSO_DATABASE_URL", "libsql://example.turso.io")
     monkeypatch.setenv("TURSO_AUTH_TOKEN", "token")
+    monkeypatch.delenv(db.SQLITE_PATH_VAR, raising=False)
+
+
+@pytest.fixture
+def with_sqlite(monkeypatch, tmp_path):
+    """The fallback: a real database, no cloud account, no credential."""
+    monkeypatch.delenv("TURSO_DATABASE_URL", raising=False)
+    monkeypatch.delenv("TURSO_AUTH_TOKEN", raising=False)
+    monkeypatch.setenv(db.SQLITE_PATH_VAR, str(tmp_path / "feynly.db"))
 
 
 # ------------------------------------------------------------- selection
@@ -121,3 +133,81 @@ def test_user_scoped_tables_key_on_user_id():
     for statement in db.SCHEMA:
         if "PRIMARY KEY" in statement:
             assert "user_id" in statement.split("PRIMARY KEY")[1]
+
+
+# --------------------------------------------------------------- sqlite
+
+
+def test_sqlite_path_counts_as_a_database(with_sqlite):
+    """Without this the app falls back to JSON, where every visitor shares one
+    account. That is the bug this fallback exists to prevent."""
+    assert stores.using_database() is True
+    assert isinstance(stores.concept_store("u1"), db.TursoConceptStore)
+    assert stores.session_key("alice") == "alice"
+
+
+def test_turso_wins_when_both_are_configured(monkeypatch, tmp_path):
+    monkeypatch.setenv("TURSO_DATABASE_URL", "libsql://example.turso.io")
+    monkeypatch.setenv("TURSO_AUTH_TOKEN", "token")
+    monkeypatch.setenv(db.SQLITE_PATH_VAR, str(tmp_path / "unused.db"))
+    try:
+        client = db.connect()
+    except db.DatabaseError as exc:
+        # libsql-client is a deploy-only dependency, so locally the Turso branch
+        # stops at the import. Either outcome proves it did not pick SQLite.
+        assert "libsql-client" in str(exc)
+    else:
+        assert not isinstance(client, db._SqliteClient)
+        client.close()
+
+
+def test_sqlite_creates_a_missing_parent_directory(monkeypatch, tmp_path):
+    """A host handing over an empty volume must not 500 on the first visitor."""
+    monkeypatch.delenv("TURSO_DATABASE_URL", raising=False)
+    monkeypatch.delenv("TURSO_AUTH_TOKEN", raising=False)
+    monkeypatch.setenv(db.SQLITE_PATH_VAR, str(tmp_path / "nested" / "dir" / "f.db"))
+    with db.connect() as client:
+        assert isinstance(client, db._SqliteClient)
+
+
+def test_sqlite_round_trips_a_concept(with_sqlite):
+    db.init_schema()
+    store = db.TursoConceptStore("alice")
+    store.add("inertia", "An object resists a change in its state of motion.", "physics")
+    store.save()
+
+    assert db.TursoConceptStore("alice").get("inertia") is not None
+    assert db.TursoConceptStore("alice").subject_of("inertia") == "physics"
+
+
+def test_sqlite_keeps_two_visitors_apart(with_sqlite):
+    """The whole reason the fallback exists, asserted end to end."""
+    db.init_schema()
+
+    alice = db.TursoConceptStore("alice")
+    alice.add("inertia", "An object resists a change in its state of motion.")
+    alice.save()
+
+    assert db.TursoConceptStore("bob").names() == []
+    assert db.TursoConceptStore("bob").get("inertia") is None
+    assert "inertia" in db.TursoConceptStore("alice").names()
+
+
+def test_sqlite_keeps_two_visitors_scores_apart(with_sqlite):
+    db.init_schema()
+    db.TursoProgressStore("alice").record("alice", "inertia", 8.0)
+
+    assert db.TursoProgressStore("bob").total_attempts("bob") == 0
+    assert db.TursoProgressStore("alice").total_attempts("alice") == 1
+
+
+def test_sqlite_survives_reopening(with_sqlite):
+    """Each operation opens its own short-lived connection, so the data has to
+    outlive the client rather than living in it."""
+    db.init_schema()
+    store = db.TursoConceptStore("alice")
+    store.add("inertia", "An object resists a change in its state of motion.")
+    store.save()
+
+    reopened = db.TursoConceptStore("alice")
+    assert reopened.get("inertia") is not None

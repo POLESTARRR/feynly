@@ -9,9 +9,14 @@ putting Feynly on a public URL where other people can use it.
 | | Local | Deployed |
 |---|---|---|
 | Grading | `claude -p` on your Claude subscription | Gemini free tier |
-| Storage | JSON files under `data/` | Turso database |
+| Storage | JSON files under `data/` | Turso, or a SQLite file |
 | Users | one history, yours | one private history per visitor |
 | Cost | nothing | nothing |
+
+Storage has to change for the same reason grading does, and it is the part
+people skip. The JSON stores key everything under a single user, so deployed
+unchanged every visitor reads and overwrites the same notes and the same
+scores. That is not a small bug on a public URL.
 
 Grading has to change because a public host has no Claude Code CLI, and your
 subscription token must never be shipped to a server strangers can reach.
@@ -24,14 +29,28 @@ Create fresh ones and put them straight into the host's secrets panel.
 - Gemini key: <https://aistudio.google.com/apikey>
 - Turso database: <https://turso.tech>
 
-You will need four values:
+You will need two values, and optionally two more:
 
 | Variable | Where it comes from |
 |---|---|
 | `GEMINI_API_KEY` | AI Studio |
-| `TURSO_DATABASE_URL` | Turso, looks like `libsql://name-user.turso.io` |
-| `TURSO_AUTH_TOKEN` | Turso |
 | `FLASK_SECRET_KEY` | any long random string, e.g. `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `TURSO_DATABASE_URL` | optional. Turso, looks like `libsql://name-user.turso.io` |
+| `TURSO_AUTH_TOKEN` | optional. Turso |
+
+### If you skip Turso
+
+The Dockerfile sets `FEYNLY_SQLITE_PATH`, so with no Turso account at all the
+app stores each visitor in a SQLite file on the container's own disk. Every note
+and score is still scoped to the session holding the cookie, so nobody reads
+anybody else's material.
+
+What you give up is persistence. A free host wipes the filesystem when the
+container sleeps, so everything is gone the next morning. That is fine for a
+demo somebody opens once and wrong for anyone actually studying.
+
+Setting the two Turso variables upgrades it, and `db.py` prefers them
+automatically whenever both are present. Nothing else has to change.
 
 `FLASK_SECRET_KEY` is not optional. It signs the cookie that tells one visitor
 from another. Without a stable secret, sessions break on every restart; with a
