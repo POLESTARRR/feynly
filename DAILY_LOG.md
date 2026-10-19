@@ -8,3 +8,6 @@ No requirements.txt or package.json was immediately visible in the file listing,
 
 ## 2026-10-17
 The `scheduler.py` module is 7,111 bytes, identical in size to the content-repurposer's `generator.py`, suggesting possible code reuse or similar architecture.
+
+## 2026-10-20
+The project uses a `src/` directory structure separating core logic from entry points or UI layers.
