@@ -20,3 +20,6 @@ The project name 'FEYNLY' suggests Feynman technique influence (learning by teac
 
 ## 2026-10-23
 The project sits under `/APM/` alongside other personal productivity/health apps (umbra, prahar, scalp log), indicating a personal tools suite.
+
+## 2026-10-23
+The naming pattern (`scheduler`, `tutor`) implies a system for delivering educational content at scheduled intervals with interactive follow-up.
