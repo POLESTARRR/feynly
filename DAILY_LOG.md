@@ -17,3 +17,6 @@ The directory structure appears minimal, focusing on core logic modules without 
 
 ## 2026-10-23
 The project name 'FEYNLY' suggests Feynman technique influence (learning by teaching/explaining in simple terms).
+
+## 2026-10-23
+The project sits under `/APM/` alongside other personal productivity/health apps (umbra, prahar, scalp log), indicating a personal tools suite.
