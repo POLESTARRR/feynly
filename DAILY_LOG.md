@@ -14,3 +14,6 @@ The project uses a `src/` directory structure separating core logic from entry p
 
 ## 2026-10-20
 The directory structure appears minimal, focusing on core logic modules without scaffolding or boilerplate framework code.
+
+## 2026-10-23
+The project name 'FEYNLY' suggests Feynman technique influence (learning by teaching/explaining in simple terms).
