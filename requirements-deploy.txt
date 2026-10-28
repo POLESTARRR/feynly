@@ -1,0 +1,9 @@
+# Dependencies for the deployed instance only.
+# Local use needs requirements.txt instead; it has no cloud dependencies at all.
+
+flask>=3.0
+gunicorn>=21.2          # production server; the Flask dev server is not one
+python-dotenv>=1.0
+
+google-genai>=1.0       # grading and vision on the free tier
+libsql-client>=0.3      # Turso, so progress survives a restart

@@ -1,0 +1,9 @@
+# Core: the terminal app
+rich>=13.0            # colorized terminal output
+python-dotenv>=1.0    # loads .env
+
+# The browser interface (src/webapp.py)
+flask>=3.0
+
+# Dev: only needed to run tests/
+pytest>=8.0

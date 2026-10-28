@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # The deploy dependencies too: some tests build real Gemini request
+          # payloads rather than faking them, so the SDK has to be present.
+          # Installing them here also proves the deploy set still resolves.
+          pip install -r requirements-deploy.txt
+
+      - name: Run tests
+        # The suite mocks out `claude -p` entirely, so it needs no credentials
+        # and makes no network calls.
+        run: pytest -q

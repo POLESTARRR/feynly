@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Tutor · Feynly{% endblock %}
+
+{% block content %}
+<div class="wrap wrap-narrow">
+  <span class="eyebrow">● Grounded in your notes</span>
+  <h1>Ask about anything you're studying.</h1>
+  <p class="dim">It knows your notes and how you've been scoring. If it answers with
+    anything that isn't in your notes, it tells you.</p>
+
+  <div id="transcript" style="margin-top: 1.8rem;">
+    {% for turn in turns %}
+      <div class="msg {% if turn.role == 'student' %}msg-you{% else %}msg-tutor{% endif %}">{{ turn.text }}</div>
+    {% else %}
+      <div class="glass card empty">Nothing yet. Try asking what you're weakest at.</div>
+    {% endfor %}
+  </div>
+
+  <form id="askForm" class="composer">
+    <div class="composer-glow"></div>
+    <div class="composer-inner">
+      <textarea id="question" style="min-height: 96px"
+        placeholder="e.g. why do I keep losing marks on photosynthesis?"></textarea>
+      <div class="composer-bar">
+        <span class="composer-hint">Hit ⌘↵ to send. It remembers between visits.</span>
+        <button class="send" id="askBtn" type="submit" aria-label="Ask">↑</button>
+      </div>
+    </div>
+  </form>
+
+  <div id="status"></div>
+
+  <div class="row" style="margin-top: 1rem;">
+    <button class="btn" id="forgetBtn">Clear memory</button>
+    <span class="small dim">{{ turns|length // 2 }} exchange(s) remembered</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const el = (id) => document.getElementById(id);
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function addMessage(text, who) {
+  const empty = document.querySelector("#transcript .empty");
+  if (empty) empty.remove();
+  const div = document.createElement("div");
+  div.className = "msg fade-in " + (who === "you" ? "msg-you" : "msg-tutor");
+  div.textContent = text;
+  el("transcript").appendChild(div);
+  div.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+el("askForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = el("question").value.trim();
+  if (!q) return;
+
+  addMessage(q, "you");
+  el("question").value = "";
+  el("askBtn").disabled = true;
+  el("status").innerHTML =
+    `<div class="glass card row" style="margin-top:1rem"><span class="spinner"></span><span class="dim">Thinking...</span></div>`;
+
+  try {
+    const res = await fetch("/api/tutor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: q }),
+    });
+    const data = await res.json();
+    el("status").innerHTML = "";
+    if (!res.ok) {
+      el("status").innerHTML = `<div class="alert alert-bad">${escapeHtml(data.error || "Tutor unavailable.")}</div>`;
+    } else {
+      addMessage(data.reply, "tutor");
+    }
+  } catch (err) {
+    el("status").innerHTML = `<div class="alert alert-bad">${escapeHtml(err.message)}</div>`;
+  } finally {
+    el("askBtn").disabled = false;
+  }
+});
+
+el("question").addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") el("askForm").requestSubmit();
+});
+
+el("forgetBtn").onclick = async () => {
+  await fetch("/api/tutor/forget", { method: "POST" });
+  location.reload();
+};
+</script>
+{% endblock %}

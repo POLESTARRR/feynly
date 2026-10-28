@@ -1,0 +1,32 @@
+# Render Blueprint. Point Render at this repository and it reads everything here,
+# so the only thing left to fill in by hand is the four secrets.
+#
+# Render injects PORT, which the Dockerfile already binds to.
+
+services:
+  - type: web
+    name: feynly
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      # Not secret: which grading backend to use.
+      - key: LLM_PROVIDER
+        value: gemini
+
+      # sync: false means "ask me for this in the dashboard, do not store it in
+      # the repository". Render prompts for each one when the Blueprint is
+      # first applied.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+
+      # Signs the session cookie that keeps one visitor's notes away from
+      # another's. generateValue lets Render mint it, so no secret has to be
+      # copied anywhere, and it stays stable across deploys.
+      - key: FLASK_SECRET_KEY
+        generateValue: true

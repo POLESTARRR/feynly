@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Notes · Feynly{% endblock %}
+
+{% block content %}
+<div class="wrap wrap-narrow">
+  <span class="eyebrow">● {{ total_concepts }} concepts loaded</span>
+  <h1>Photograph your notes.</h1>
+  <p class="dim">A whiteboard, a textbook page, your own handwriting. We'll turn it into
+    study material so you don't have to type it out.</p>
+
+  <form id="uploadForm" style="margin-top: 1.8rem;">
+    <div class="drop glass" id="drop">
+      <div style="font-size: 2rem;">📷</div>
+      <div style="margin-top: .5rem; font-weight: 600;">Drop an image here, or click to choose</div>
+      <div class="small dim" style="margin-top: .3rem;">png · jpg · webp · heic · pdf</div>
+      <input type="file" id="file" accept="image/*,.pdf,.heic" multiple hidden>
+    </div>
+    <div id="fileList" class="row" style="margin-top: .8rem;"></div>
+
+    <div class="row" style="margin-top: 1rem;">
+      <input class="btn" id="subject" placeholder="Subject (optional)" style="flex:1; min-width: 180px;">
+      <button class="btn btn-primary" id="uploadBtn" type="submit" disabled>Transcribe</button>
+    </div>
+  </form>
+
+  <div id="status"></div>
+
+  <div class="alert alert-info" style="margin-top: 1.5rem;">
+    <strong>Check it before you save.</strong> Whatever we read becomes the answer key for
+    grading. If we misread a word, it'll quietly mark you wrong on it later. You get to fix
+    that first.
+  </div>
+
+  <h2 style="margin-top: 2.5rem;">What's loaded</h2>
+  <div class="glass card scroll-x" style="margin-top: .8rem;">
+    {% if concepts %}
+    <table>
+      <tr><th>Concept</th><th>Subject</th></tr>
+      {% for c in concepts %}
+      <tr><td>{{ c.name }}</td><td><span class="chip">{{ c.subject }}</span></td></tr>
+      {% endfor %}
+    </table>
+    {% else %}
+      <span class="empty">Nothing here yet.</span>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const el = (id) => document.getElementById(id);
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const drop = el("drop"), fileInput = el("file");
+let files = [];
+
+drop.onclick = () => fileInput.click();
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => {
+  e.preventDefault();
+  drop.classList.remove("over");
+  setFiles([...e.dataTransfer.files]);
+};
+fileInput.onchange = () => setFiles([...fileInput.files]);
+
+function setFiles(list) {
+  files = list;
+  el("fileList").innerHTML = files.map((f) => `<span class="chip">${escapeHtml(f.name)}</span>`).join("");
+  el("uploadBtn").disabled = files.length === 0;
+}
+
+el("uploadForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!files.length) return;
+
+  const body = new FormData();
+  files.forEach((f) => body.append("images", f));
+  body.append("subject", el("subject").value.trim());
+
+  el("uploadBtn").disabled = true;
+  el("status").innerHTML =
+    `<div class="glass card row" style="margin-top:1rem"><span class="spinner"></span>
+     <span class="dim">Reading ${files.length} image(s). Takes a moment each.</span></div>`;
+
+  try {
+    const res = await fetch("/api/import", { method: "POST", body });
+    const data = await res.json();
+    if (!res.ok) {
+      el("status").innerHTML = `<div class="alert alert-bad" style="margin-top:1rem">${escapeHtml(data.error)}</div>`;
+    } else {
+      showReview(data.markdown, data.concept_count);
+    }
+  } catch (err) {
+    el("status").innerHTML = `<div class="alert alert-bad" style="margin-top:1rem">${escapeHtml(err.message)}</div>`;
+  } finally {
+    el("uploadBtn").disabled = false;
+  }
+});
+
+function showReview(markdown, count) {
+  el("status").innerHTML = `
+    <div class="glass-strong card fade-in" style="margin-top:1.2rem">
+      <div class="spread">
+        <h3 style="font-family:var(--serif)">Found ${count} concept(s)</h3>
+        <span class="chip">editable</span>
+      </div>
+      <p class="small dim" style="margin:.5rem 0 .8rem">
+        Fix anything we got wrong, then save.
+      </p>
+      <textarea id="reviewText" class="mono"
+        style="width:100%;min-height:320px;background:rgba(0,0,0,.25);color:var(--text);
+               border:1px solid var(--line);border-radius:11px;padding:.9rem;font-size:.85rem;
+               line-height:1.6;resize:vertical"></textarea>
+      <div class="row" style="margin-top:1rem">
+        <button class="btn btn-primary" id="saveBtn">Save to my notes</button>
+        <button class="btn" onclick="el('status').innerHTML=''">Discard</button>
+      </div>
+      <div id="saveStatus"></div>
+    </div>`;
+  el("reviewText").value = markdown;
+  el("saveBtn").onclick = save;
+}
+
+async function save() {
+  el("saveBtn").disabled = true;
+  const res = await fetch("/api/import/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ markdown: el("reviewText").value, subject: el("subject").value.trim() }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    el("saveStatus").innerHTML = `<div class="alert alert-bad" style="margin-top:1rem">${escapeHtml(data.error)}</div>`;
+    el("saveBtn").disabled = false;
+  } else {
+    const first = (data.names || [])[0];
+    const link = first ? "/?concept=" + encodeURIComponent(first) : "/";
+    el("saveStatus").innerHTML =
+      `<div class="alert alert-ok" style="margin-top:1rem">
+         Saved ${data.added} concept(s).
+         <a href="${link}" style="text-decoration:underline">Study ${first ? escapeHtml(first) : "now"} →</a>
+       </div>`;
+  }
+}
+</script>
+{% endblock %}

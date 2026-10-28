@@ -1,0 +1,29 @@
+[project]
+name = "feynly"
+version = "0.3.0"
+description = "Feynman-technique study system: explain concepts in your own words and get graded against your own notes"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "rich>=13.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+web = ["flask>=3.0"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+study = "src.study:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "error",
+    # google-genai trips Python 3.14's typing deprecations on import. Third-party
+    # and harmless; scoped narrowly so our own warnings still fail the suite.
+    "ignore:.*_UnionGenericAlias.*:DeprecationWarning",
+    "ignore:.*typing.ByteString.*:DeprecationWarning",
+]

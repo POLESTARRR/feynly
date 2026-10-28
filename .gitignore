@@ -1,0 +1,18 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+data/concepts.json
+data/progress.json
+data/sessions/
+data/unsent/
+data/tutor_history.json
+data/.import/
+data/reminder.log
+data/*.corrupt-*
+.dist/
+venv/
+.venv/
+
+# Your own notes stay local. sample_notes.md is the only committed example
+notes/

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Feynly{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+</head>
+<body>
+<div class="page">
+
+  <nav class="nav">
+    <a class="brand" href="{{ url_for('study_page') }}">
+      <span class="brand-mark">🧠</span>
+      <span>feynly</span>
+    </a>
+    <div class="nav-links">
+      <a href="{{ url_for('study_page') }}" class="{% if active == 'study' %}active{% endif %}">Study</a>
+      <a href="{{ url_for('dashboard_page') }}" class="{% if active == 'dashboard' %}active{% endif %}">Progress</a>
+      <a href="{{ url_for('tutor_page') }}" class="{% if active == 'tutor' %}active{% endif %}">Tutor</a>
+      <a href="{{ url_for('import_page') }}" class="{% if active == 'import' %}active{% endif %}">Notes</a>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('study_page') }}?next=1">Study now</a>
+  </nav>
+
+  {% block content %}{% endblock %}
+
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

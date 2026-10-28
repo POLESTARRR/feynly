@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Progress · Feynly{% endblock %}
+
+{% macro grade(v) %}{% if v >= 8 %}score-good{% elif v >= 5 %}score-mid{% else %}score-bad{% endif %}{% endmacro %}
+
+{% block content %}
+<div class="wrap">
+  <span class="eyebrow">● Updated {{ data.generated_at }}</span>
+  <h1>How you're actually doing.</h1>
+
+  {% set g = data.gamification %}
+
+  <div class="glass-strong card" style="margin: 1.5rem 0;">
+    <div class="spread">
+      <div>
+        <div class="small dim">Level</div>
+        <div class="score-value" style="color: var(--indigo-soft)">{{ g.level }}</div>
+      </div>
+      <div style="text-align: right; line-height: 1.9;">
+        <div><strong>{{ g.xp }}</strong> XP total</div>
+        <div>{{ g.current_streak }}-day streak <span class="dim small">(best {{ g.longest_streak }})</span></div>
+        <div>{{ g.earned_count }}/{{ g.total_count }} badges</div>
+      </div>
+    </div>
+    <div class="bar" style="margin-top: 1rem;"><i style="width: {{ g.progress_percent }}%"></i></div>
+    <div class="small dim" style="margin-top: .4rem;">
+      {{ g.xp_into_level }}/{{ g.xp_for_next }} XP to level {{ g.level + 1 }}
+    </div>
+  </div>
+
+  <div class="tiles">
+    <div class="glass tile"><div class="label">Concepts</div><div class="value">{{ data.totals.loaded }}</div></div>
+    <div class="glass tile"><div class="label">Studied</div><div class="value">{{ data.totals.studied }}</div></div>
+    <div class="glass tile"><div class="label">Explanations</div><div class="value">{{ data.totals.attempts }}</div></div>
+    <div class="glass tile"><div class="label">Due now</div><div class="value">{{ data.totals.due }}</div></div>
+    <div class="glass tile">
+      <div class="label">Average</div>
+      <div class="value {% if data.totals.overall_average %}{{ grade(data.totals.overall_average) }}{% endif %}">
+        {% if data.totals.overall_average %}{{ "%.1f"|format(data.totals.overall_average) }}{% else %}-{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if data.due %}
+  <h2 style="margin-top: 2.5rem;">Due for review</h2>
+  <div class="glass card" style="margin-top: .8rem;">
+    <div class="row">
+      {% for row in data.due %}
+        <a class="chip chip-due" href="{{ url_for('study_page') }}?concept={{ row.concept|urlencode }}">
+          {{ row.concept }}{% if row.days_overdue > 0 %} · {{ row.days_overdue }}d{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if data.subjects|length > 1 %}
+  <h2 style="margin-top: 2.5rem;">By subject</h2>
+  <div class="glass card scroll-x" style="margin-top: .8rem;">
+    <table>
+      <tr><th>Subject</th><th class="num">Concepts</th><th class="num">Studied</th><th class="num">Average</th><th>Coverage</th></tr>
+      {% for s in data.subjects %}
+      <tr>
+        <td>{{ s.subject }}</td>
+        <td class="num">{{ s.concepts }}</td>
+        <td class="num">{{ s.studied }}/{{ s.concepts }}</td>
+        <td class="num {% if s.average %}{{ grade(s.average) }}{% endif %}">
+          {% if s.average %}{{ "%.1f"|format(s.average) }}{% else %}-{% endif %}
+        </td>
+        <td><div class="bar" style="max-width:160px"><i style="width: {{ (s.studied / s.concepts * 100)|round|int }}%"></i></div></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <h2 style="margin-top: 2.5rem;">Every concept</h2>
+  <div class="glass card scroll-x" style="margin-top: .8rem;">
+    <table>
+      <tr><th>Concept</th><th>Subject</th><th class="num">Average</th><th class="num">Tries</th><th>Next review</th><th></th></tr>
+      {% for c in data.concepts %}
+      <tr>
+        <td>{{ c.concept }}</td>
+        <td><span class="chip">{{ c.subject }}</span></td>
+        <td class="num {% if c.average %}{{ grade(c.average) }}{% endif %}">
+          {% if c.average %}{{ "%.1f"|format(c.average) }}{% else %}<span class="empty">-</span>{% endif %}
+        </td>
+        <td class="num">{{ c.attempts }}</td>
+        <td class="small dim">{{ c.due or "-" }}</td>
+        <td><a class="chip" href="{{ url_for('study_page') }}?concept={{ c.concept|urlencode }}">Explain</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <h2 style="margin-top: 2.5rem;">Badges</h2>
+  <div class="badges" style="margin-top: .8rem;">
+    {% for b in g.badges %}
+    <div class="glass badge-item {% if not b.earned %}locked{% endif %}">
+      <span class="badge-mark">{% if b.earned %}🏅{% else %}🔒{% endif %}</span>
+      <span class="badge-name">{{ b.name }}</span>
+      <span class="badge-desc">{{ b.description }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if data.trend %}
+  <h2 style="margin-top: 2.5rem;">Daily average</h2>
+  <div class="glass card scroll-x" style="margin-top: .8rem;">
+    <table>
+      <tr><th>Date</th><th class="num">Average</th><th class="num">Explanations</th><th></th></tr>
+      {% for d in data.trend %}
+      <tr>
+        <td>{{ d.date }}</td>
+        <td class="num {{ grade(d.average) }}">{{ "%.1f"|format(d.average) }}</td>
+        <td class="num">{{ d.count }}</td>
+        <td><div class="bar" style="max-width:200px"><i style="width: {{ (d.average / 10 * 100)|round|int }}%"></i></div></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

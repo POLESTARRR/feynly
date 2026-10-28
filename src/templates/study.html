@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Study · Feynly{% endblock %}
+
+{% block content %}
+<div class="wrap wrap-narrow">
+
+  {% if not total_concepts %}
+    <span class="eyebrow">Nothing here yet</span>
+    <h1>Nothing to study yet.</h1>
+    <p class="dim">Add some notes first. You can photograph a page and we'll type it up
+      for you.</p>
+    <p><a class="btn btn-primary" href="{{ url_for('import_page') }}">Add notes</a></p>
+
+  {% else %}
+    <span class="eyebrow">
+      {% if due_count %}● {{ due_count }} due for review{% else %}● {{ total_concepts }} concepts loaded{% endif %}
+    </span>
+    <h1>Explain it in your own words.</h1>
+    <p class="dim cursor" id="tagline">If you can't teach it, you don't know it yet</p>
+
+    <div class="glass card" style="margin-top: 1.6rem;">
+      <div class="spread">
+        <div>
+          <div class="small dim">Now explaining</div>
+          <h2 id="conceptName" style="margin-top: .2rem;">{{ concept or "-" }}</h2>
+          <div class="row" style="margin-top: .5rem;">
+            {% if subject %}<span class="chip">{{ subject }}</span>{% endif %}
+            {% if reason %}<span class="chip chip-due">{{ reason }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn" id="pickBtn">Pick another</button>
+          <select class="btn" id="conceptSelect" aria-label="Choose a concept">
+            <option value="">Choose...</option>
+            {% for subject, names in grouped %}
+              <optgroup label="{{ subject }}">
+                {% for c in names %}
+                  <option value="{{ c }}" {% if c == concept %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+              </optgroup>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <p class="small dim" style="margin: 1rem 0 0;">
+        We keep your notes hidden. Reading them first would defeat the point.
+      </p>
+    </div>
+
+    <form id="explainForm" class="composer">
+      <div class="composer-glow"></div>
+      <div class="composer-inner">
+        <textarea id="explanation" name="explanation"
+          placeholder="Teach it to someone who's never heard of it. Don't worry about sounding polished. Just don't leave anything out."></textarea>
+        <div class="composer-bar">
+          <span class="composer-hint">Takes about 30 seconds. Hit ⌘↵ to send.</span>
+          <button class="send" id="sendBtn" type="submit" title="Submit for grading" aria-label="Submit">↑</button>
+        </div>
+      </div>
+    </form>
+
+    <div id="status"></div>
+    <div id="result"></div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const el = (id) => document.getElementById(id);
+const form = el("explainForm");
+
+// Typing-cursor tagline: written out once on load, then the cursor keeps blinking.
+(function typeTagline() {
+  const node = el("tagline");
+  if (!node) return;
+  const full = node.textContent;
+  node.textContent = "";
+  let i = 0;
+  const tick = () => {
+    node.textContent = full.slice(0, i++);
+    if (i <= full.length) setTimeout(tick, 28);
+  };
+  tick();
+})();
+
+function scoreClass(score) {
+  return score >= 8 ? "score-good" : score >= 5 ? "score-mid" : "score-bad";
+}
+
+function section(title, items, cls) {
+  if (!items || !items.length) return "";
+  const lis = items.map((t) => `<li class="${cls}"><span>${escapeHtml(t)}</span></li>`).join("");
+  return `<div class="feedback-group">
+      <div class="feedback-title ${cls}">${title}</div>
+      <ul class="feedback-list">${lis}</ul>
+    </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderResult(data) {
+  const s = data.score;
+  el("result").innerHTML = `
+    <div class="glass-strong card fade-in" style="margin-top: 1.2rem;">
+      <div class="score-head">
+        <span class="score-value ${scoreClass(s)}">${s.toFixed(0)}<span style="font-size:1.1rem;color:var(--text-dim)">/10</span></span>
+        <span class="dim">${escapeHtml(data.concept)}</span>
+        ${data.next_due ? `<span class="chip" style="margin-left:auto">Next review ${escapeHtml(data.next_due)}</span>` : ""}
+      </div>
+      ${data.summary ? `<p style="margin:.4rem 0 0;font-style:italic">${escapeHtml(data.summary)}</p>` : ""}
+      ${section("Correct", data.correct, "t-correct")}
+      ${section("Vague", data.vague, "t-vague")}
+      ${section("Wrong / missing", data.wrong_or_missing, "t-wrong")}
+      ${section("Not covered by your notes", data.notes_gaps, "t-gap")}
+      <div class="row" style="margin-top:1.2rem">
+        <span class="chip">+${data.xp} XP</span>
+        ${(data.new_badges || []).map((b) => `<span class="chip chip-due">🏅 ${escapeHtml(b)}</span>`).join("")}
+        <button class="btn" onclick="location.href='/?next=1'">Next concept →</button>
+      </div>
+    </div>`;
+  el("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+if (form) {
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = el("explanation").value.trim();
+    const concept = el("conceptName").textContent.trim();
+    if (!text) return;
+
+    el("sendBtn").disabled = true;
+    el("result").innerHTML = "";
+    el("status").innerHTML =
+      `<div class="glass card row" style="margin-top:1rem"><span class="spinner"></span>
+       <span class="dim">Reading your answer</span></div>`;
+
+    try {
+      const res = await fetch("/api/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concept, explanation: text }),
+      });
+      const data = await res.json();
+      el("status").innerHTML = "";
+      if (!res.ok) {
+        el("status").innerHTML =
+          `<div class="alert alert-bad" style="margin-top:1rem">${escapeHtml(data.error || "Grading failed.")}</div>`;
+      } else {
+        renderResult(data);
+      }
+    } catch (err) {
+      el("status").innerHTML =
+        `<div class="alert alert-bad" style="margin-top:1rem">Couldn't reach the grader. ${escapeHtml(err.message)}</div>`;
+    } finally {
+      el("sendBtn").disabled = false;
+    }
+  });
+
+  el("explanation").addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") form.requestSubmit();
+  });
+}
+
+const pick = el("pickBtn");
+if (pick) pick.onclick = () => (location.href = "/?next=1");
+
+const select = el("conceptSelect");
+if (select) select.onchange = () => {
+  if (select.value) location.href = "/?concept=" + encodeURIComponent(select.value);
+};
+</script>
+{% endblock %}
