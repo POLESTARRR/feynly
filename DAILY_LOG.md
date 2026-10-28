@@ -26,3 +26,6 @@ The naming pattern (`scheduler`, `tutor`) implies a system for delivering educat
 
 ## 2026-10-28
 The `tutor.py` module at 10,227 bytes likely implements conversational logic, answer evaluation, or Socratic questioning flows.
+
+## 2026-10-29
+File sizes suggest `tutor.py` is the larger, more complex module compared to `scheduler.py`.
