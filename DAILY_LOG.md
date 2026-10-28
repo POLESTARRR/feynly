@@ -23,3 +23,6 @@ The project sits under `/APM/` alongside other personal productivity/health apps
 
 ## 2026-10-23
 The naming pattern (`scheduler`, `tutor`) implies a system for delivering educational content at scheduled intervals with interactive follow-up.
+
+## 2026-10-28
+The `tutor.py` module at 10,227 bytes likely implements conversational logic, answer evaluation, or Socratic questioning flows.
