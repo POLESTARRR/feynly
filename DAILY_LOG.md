@@ -29,3 +29,6 @@ The `tutor.py` module at 10,227 bytes likely implements conversational logic, an
 
 ## 2026-10-29
 File sizes suggest `tutor.py` is the larger, more complex module compared to `scheduler.py`.
+
+## 2026-11-01
+The `tutor.py` module (10,227 chars) implements a tutoring engine with multi-turn interaction logic.
