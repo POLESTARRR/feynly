@@ -32,3 +32,6 @@ File sizes suggest `tutor.py` is the larger, more complex module compared to `sc
 
 ## 2026-11-01
 The `tutor.py` module (10,227 chars) implements a tutoring engine with multi-turn interaction logic.
+
+## 2026-11-01
+The `scheduler.py` and `tutor.py` modules are Python files, consistent with LLM-based tutoring or educational automation.
