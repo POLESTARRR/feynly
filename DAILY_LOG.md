@@ -35,3 +35,6 @@ The `tutor.py` module (10,227 chars) implements a tutoring engine with multi-tur
 
 ## 2026-11-01
 The `scheduler.py` and `tutor.py` modules are Python files, consistent with LLM-based tutoring or educational automation.
+
+## 2026-11-02
+Both `scheduler.py` and `tutor.py` exist as sibling modules under `src/`, indicating scheduled lesson delivery paired with interactive tutoring.
